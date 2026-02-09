@@ -57,21 +57,13 @@ contract DecentralizedStableCoinTest is Test {
 
     function testMintRevertsIfToAddressIsZero() public {
         vm.prank(owner);
-        vm.expectRevert(
-            DecentralizedStableCoin
-                .DecentralizedStableCoin__NotZeroAddress
-                .selector
-        );
+        vm.expectRevert(DecentralizedStableCoin.DecentralizedStableCoin__NotZeroAddress.selector);
         dsc.mint(address(0), STARTING_AMOUNT);
     }
 
     function testMintRevertsIfAmountIsZero() public {
         vm.prank(owner);
-        vm.expectRevert(
-            DecentralizedStableCoin
-                .DecentralizedStableCoin__MustBeMoreThanZero
-                .selector
-        );
+        vm.expectRevert(DecentralizedStableCoin.DecentralizedStableCoin__MustBeMoreThanZero.selector);
         dsc.mint(user1, 0);
     }
 
@@ -141,11 +133,7 @@ contract DecentralizedStableCoinTest is Test {
         dsc.mint(owner, STARTING_AMOUNT);
 
         vm.prank(owner);
-        vm.expectRevert(
-            DecentralizedStableCoin
-                .DecentralizedStableCoin__MustBeMoreThanZero
-                .selector
-        );
+        vm.expectRevert(DecentralizedStableCoin.DecentralizedStableCoin__MustBeMoreThanZero.selector);
         dsc.burn(0);
     }
 
@@ -154,11 +142,7 @@ contract DecentralizedStableCoinTest is Test {
         dsc.mint(owner, STARTING_AMOUNT);
 
         vm.prank(owner);
-        vm.expectRevert(
-            DecentralizedStableCoin
-                .DecentralizedStableCoin__BurnAmountExceedsBalance
-                .selector
-        );
+        vm.expectRevert(DecentralizedStableCoin.DecentralizedStableCoin__BurnAmountExceedsBalance.selector);
         dsc.burn(STARTING_AMOUNT + 1);
     }
 
