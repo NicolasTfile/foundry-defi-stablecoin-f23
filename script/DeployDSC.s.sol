@@ -20,6 +20,12 @@ contract DeployDSC is Script {
         tokenAddresses = [weth, wbtc];
         priceFeedAddresses = [wethUsdPriceFeed, wbtcUsdPriceFeed];
 
+        // if (block.chainid == 31337) {
+        //     vm.startBroadcast(deployerKey);
+        // } else {
+        //     vm.startBroadcast();
+        // }
+
         vm.startBroadcast(deployerKey);
         DecentralizedStableCoin dsc = new DecentralizedStableCoin();
         DSCEngine engine = new DSCEngine(tokenAddresses, priceFeedAddresses, address(dsc));

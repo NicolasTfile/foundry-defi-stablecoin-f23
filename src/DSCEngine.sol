@@ -112,7 +112,20 @@ contract DSCEngine is ReentrancyGuard {
     /////////////////////////
     // External Functions  //
     ////////////////////////
-    function depositCollateralAndMintDsc() external {}
+    /**
+     * @notice This function allows users to deposit collateral and mint DSC in a single transaction.
+     * @param tokenCollateralAddress The address of the collateral token (e.g. WETH or WBTC).
+     * @param amountCollateral The amount of collateral to deposit.
+     * @param amountDscToMint The amount of decentralized stablecoin (DSC) to mint.
+     */
+    function depositCollateralAndMintDsc(
+        address tokenCollateralAddress,
+        uint256 amountCollateral,
+        uint256 amountDscToMint
+    ) external {
+        depositCollateral(tokenCollateralAddress, amountCollateral);
+        mintDsc(amountDscToMint);
+    }
 
     /**
      * @notice This function allows users to deposit collateral.
@@ -122,7 +135,7 @@ contract DSCEngine is ReentrancyGuard {
      */
 
     function depositCollateral(address tokenCollateralAddress, uint256 amountCollateral)
-        external
+        public
         moreThanZero(amountCollateral)
         isAllowedToken(tokenCollateralAddress)
         nonReentrant
@@ -146,7 +159,7 @@ contract DSCEngine is ReentrancyGuard {
      * @param amountDscToMint The amount of decentralized stablecoin to mint
      */
 
-    function mintDsc(uint256 amountDscToMint) external moreThanZero(amountDscToMint) nonReentrant {
+    function mintDsc(uint256 amountDscToMint) public moreThanZero(amountDscToMint) nonReentrant {
         s_dscMinted[msg.sender] += amountDscToMint;
 
         // If the user has minted more than the amount of DSC they are allowed to mint based on their collateral, revert
