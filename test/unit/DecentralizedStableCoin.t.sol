@@ -3,7 +3,7 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {DecentralizedStableCoin} from "src/DecentralizedStableCoin.sol";
+import {DecentralizedStableCoin} from "../../src/DecentralizedStableCoin.sol";
 
 contract DecentralizedStableCoinTest is Test {
     DecentralizedStableCoin public dsc;
@@ -263,7 +263,7 @@ contract DecentralizedStableCoinTest is Test {
     }
 
     ////////////////////////
-    // Integration Tests  //
+    // Integration Tests  // Scrap This?
     ////////////////////////
 
     function testMintAndBurnCycle() public {
