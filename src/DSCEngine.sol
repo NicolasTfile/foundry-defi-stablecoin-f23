@@ -58,6 +58,7 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__NotAllowedToken();
     error DSCEngine__TransferFailed();
     error DSCEngine__BreaksHealthFactor(uint256 healthFactor);
+    error DSCEngine__MintFailed();
 
     //////////////////////
     // State Variables  //
@@ -150,6 +151,8 @@ contract DSCEngine is ReentrancyGuard {
 
         // If the user has minted more than the amount of DSC they are allowed to mint based on their collateral, revert
         _revertIfHealthFactorIsBroken(msg.sender);
+        bool minted = i_dsc.mint(msg.sender, amountDscToMint);
+        if (!minted) revert DSCEngine__MintFailed(); // Trying out this one liner instead of an if statement with a revert in the body, just to see if it works and is more efficient.
     }
 
     function burnDsc() external {}
@@ -207,8 +210,6 @@ contract DSCEngine is ReentrancyGuard {
      * @param user The address of the user to check the health factor for
      */
     function _revertIfHealthFactorIsBroken(address user) internal view {
-        // 1.
-        // 2.
         uint256 userHealthFactor = _healthFactor(user);
         if (userHealthFactor < MIN_HEALTH_FACTOR) {
             revert DSCEngine__BreaksHealthFactor(userHealthFactor);
