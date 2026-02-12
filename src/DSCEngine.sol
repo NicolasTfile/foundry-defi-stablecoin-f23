@@ -26,7 +26,7 @@
 pragma solidity ^0.8.20;
 
 import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
@@ -57,12 +57,16 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__TokenAddressesAndPriceFeedAddressesMustBeSameLength();
     error DSCEngine__NotAllowedToken();
     error DSCEngine__TransferFailed();
+    error DSCEngine__BreaksHealthFactor(uint256 healthFactor);
 
     //////////////////////
     // State Variables  //
     /////////////////////
     uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
     uint256 private constant PRECISION = 1e18;
+    uint256 private constant LIUIDATION_THRESHOLD = 50; // 200% overcollateralized (double the DSC)
+    uint256 private constant LIUIDATION_PRECISION = 100;
+    uint256 private constant MIN_HEALTH_FACTOR = 1;
 
     mapping(address token => address priceFeed) private s_priceFeeds;
     mapping(address user => mapping(address token => uint256 amount)) private s_collateralDeposited;
@@ -80,16 +84,12 @@ contract DSCEngine is ReentrancyGuard {
     // Modifiers        //
     /////////////////////
     modifier moreThanZero(uint256 amount) {
-        if (amount == 0) {
-            revert DSCEngine__NeedsMoreThanZero();
-        }
+        _moreThanZero(amount);
         _;
     }
 
     modifier isAllowedToken(address token) {
-        if (s_priceFeeds[token] == address(0)) {
-            revert DSCEngine__NotAllowedToken();
-        }
+        _isAllowedToken(token);
         _;
     }
 
@@ -161,6 +161,18 @@ contract DSCEngine is ReentrancyGuard {
     ////////////////////////////////////////
     // Private & Internal View Functions  //
     ////////////////////////////////////////
+    function _moreThanZero(uint256 amount) internal pure {
+        if (amount == 0) {
+            revert DSCEngine__NeedsMoreThanZero();
+        }
+    }
+
+    function _isAllowedToken(address token) internal view {
+        if (s_priceFeeds[token] == address(0)) {
+            revert DSCEngine__NotAllowedToken();
+        }
+    }
+
     function _getAccountInformation(address user)
         private
         view
@@ -180,11 +192,27 @@ contract DSCEngine is ReentrancyGuard {
         // Total DSC minted by the user
         // Total value of collateral deposited by the user (in USD)
         (uint256 totalDscMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
+        uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIUIDATION_THRESHOLD) / LIUIDATION_PRECISION;
+        // $1000 ETH * 50 = 50,000 / 100 = 500 / 100 > 1
+        // $150 ETH * 50 = 7500 / 100 = 75 / 100 < 1
+
+        // $1000 / 100 DSC
+        // 1000 * 50 = 50000 / 100 = ((500 * 1e18) / 100) > 1
+        return (collateralAdjustedForThreshold * PRECISION) / totalDscMinted;
     }
 
+    /**
+     * @notice This function checks health factor of the user (do they have enough collateral?)
+     * @notice If they don't have enough collateral, revert
+     * @param user The address of the user to check the health factor for
+     */
     function _revertIfHealthFactorIsBroken(address user) internal view {
-        // 1. Check health factor of the user(do they have enough collateral?)
-        // 2. If they don't have enough collateral, revert
+        // 1.
+        // 2.
+        uint256 userHealthFactor = _healthFactor(user);
+        if (userHealthFactor < MIN_HEALTH_FACTOR) {
+            revert DSCEngine__BreaksHealthFactor(userHealthFactor);
+        }
     }
 
     ///////////////////////////////////////
@@ -206,6 +234,8 @@ contract DSCEngine is ReentrancyGuard {
         // The price feed returns the price (for eth and btc) with 8 decimals, so we need to adjust for that when calculating the USD value
         // We want to return the USD value with 18 decimals, so we need to multiply the price by 1e10 (ADDITIONAL_FEED_PRECISION) to adjust for the 8 decimals, and then multiply by the amount of collateral, and then divide by 1e18 (PRECISION) to adjust for the 18 decimals in the amount of collateral
 
+        // casting to 'uint256' is safe because price is always positive (int256) and we are only dealing with positive values in this context
+        // forge-lint: disable-next-line(unsafe-typecast)
         return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * amount) / PRECISION;
     }
 }
