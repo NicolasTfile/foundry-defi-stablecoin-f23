@@ -80,6 +80,7 @@ contract DSCEngine is ReentrancyGuard {
     // Events           //
     /////////////////////
     event CollateralDeposited(address indexed user, address indexed token, uint256 indexed amount);
+    event CollateralRedeemed(address indexed user, address indexed token, uint256 indexed amount);
 
     //////////////////////
     // Modifiers        //
@@ -148,9 +149,42 @@ contract DSCEngine is ReentrancyGuard {
         }
     }
 
-    function redeemCollateralForDsc() external {}
+    /**
+     * @notice This function allows users burn DSC and redeem underlying collateral in a single transaction.
+     * @param tokenCollateralAddress The address of the collateral token (e.g. WETH or WBTC).
+     * @param amountCollateral The amount of collateral to redeem.
+     * @param amountDscToBurn The amount of decentralized stablecoin (DSC) to burn.
+     */
+    function redeemCollateralForDsc(address tokenCollateralAddress, uint256 amountCollateral, uint256 amountDscToBurn)
+        external
+    {
+        burnDsc(amountDscToBurn);
+        redeemCollateral(tokenCollateralAddress, amountCollateral);
+        // redeemCollateral will check the health factor after redeeming collateral, so we don't need to check it here
+    }
 
-    function redeemCollateral() external {}
+    /**
+     * @notice This function allows users to redeem collateral.
+     * @notice follows CEI pattern (Checks, Effects, Interactions)
+     * @notice In order to redeem collateral:
+     * @notice 1. Health factor must be over 1 after collateral is pulled
+     * @param tokenCollateralAddress The address of the collateral token (e.g. WETH or WBTC).
+     * @param amountCollateral The amount of collateral to redeem.
+     */
+    function redeemCollateral(address tokenCollateralAddress, uint256 amountCollateral)
+        public
+        moreThanZero(amountCollateral)
+        nonReentrant
+    {
+        s_collateralDeposited[msg.sender][tokenCollateralAddress] -= amountCollateral;
+        emit CollateralRedeemed(msg.sender, tokenCollateralAddress, amountCollateral);
+        // _calculateHealthFactorAfter()
+        bool success = IERC20(tokenCollateralAddress).transfer(msg.sender, amountCollateral);
+        if (!success) {
+            revert DSCEngine__TransferFailed();
+        }
+        _revertIfHealthFactorIsBroken(msg.sender);
+    }
 
     /**
      * @notice This function allows users to mint DSC.
@@ -168,7 +202,17 @@ contract DSCEngine is ReentrancyGuard {
         if (!minted) revert DSCEngine__MintFailed(); // Trying out this one liner instead of an if statement with a revert in the body, just to see if it works and is more efficient.
     }
 
-    function burnDsc() external {}
+    function burnDsc(uint256 amountDscToBurn) public moreThanZero(amountDscToBurn) {
+        s_dscMinted[msg.sender] -= amountDscToBurn;
+        bool success = i_dsc.transferFrom(msg.sender, address(this), amountDscToBurn);
+        // The conditional below is hpothetically redundant because the transferFrom function in the DecentralizedStableCoin contract should revert if the transfer fails,
+        // but we include it here for completeness and to handle any unexpected cases where the transfer might fail without reverting.
+        if (!success) {
+            revert DSCEngine__TransferFailed();
+        }
+        i_dsc.burn(amountDscToBurn);
+        _revertIfHealthFactorIsBroken(msg.sender); // I don't think this will ever hit because burning DSC should only increase the health factor
+    }
 
     function liquidate() external {}
 
