@@ -350,6 +350,8 @@ contract DSCEngine is ReentrancyGuard {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         (, int256 price,,,) = priceFeed.latestRoundData();
         // ($10e18 * 1e18) / ($2000e8 * 1e10)
+        // casting to 'uint256' is safe because price is always positive (int256) and we are only dealing with positive values in this context
+        // forge-lint: disable-next-line(unsafe-typecast)
         return (usdAmountInWei * PRECISION) / (uint256(price) * ADDITIONAL_FEED_PRECISION);
     }
 
