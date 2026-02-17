@@ -198,7 +198,7 @@ contract DSCEngine is ReentrancyGuard {
         // If the user has minted more than the amount of DSC they are allowed to mint based on their collateral, revert
         _revertIfHealthFactorIsBroken(msg.sender);
         bool minted = i_dsc.mint(msg.sender, amountDscToMint);
-        if (!minted) revert DSCEngine__MintFailed(); // Trying out this one liner instead of an if statement with a revert in the body, just to see if it works and is more efficient.
+        if (!minted) revert DSCEngine__MintFailed(); // Trying out this one-liner instead of an if statement with a revert in the body, just to see if it works and is more efficient.
     }
 
     function burnDsc(uint256 amountDscToBurn) public moreThanZero(amountDscToBurn) {
