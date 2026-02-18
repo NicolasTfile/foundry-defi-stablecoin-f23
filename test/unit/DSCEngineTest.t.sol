@@ -220,7 +220,7 @@ contract DSCEngineTest is Test {
         // Try to mint more than allowed (health factor < 1)
         // Collateral: 10 ETH * $2000 = $20,000
         // Max DSC: $20,000 * 50% / 100% = $10,000
-        vm.expectRevert(abi.encodeWithSelector(DSCEngine.DSCEngine__BreaksHealthFactor.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(DSCEngine.DSCEngine__BreaksHealthFactor.selector, 999900009999000099)); // 999900009999000099 from forge test error message
         dsce.mintDsc(10001 ether); // Trying to mint $10,001 should fail
         vm.stopPrank();
     }
@@ -280,7 +280,7 @@ contract DSCEngineTest is Test {
         vm.startPrank(user);
         ERC20Mock(weth).approve(address(dsce), AMOUNT_COLLATERAL);
 
-        vm.expectRevert(abi.encodeWithSelector(DSCEngine.DSCEngine__BreaksHealthFactor.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(DSCEngine.DSCEngine__BreaksHealthFactor.selector, 666666666666666666)); // 666666666666666666 from forge test error message
         dsce.depositCollateralAndMintDsc(weth, AMOUNT_COLLATERAL, 15000 ether); // Too much DSC
         vm.stopPrank();
     }
@@ -385,7 +385,7 @@ contract DSCEngineTest is Test {
     function testRevertsIfRedeemBreaksHealthFactor() public depositedCollateralAndMintedDsc {
         vm.startPrank(user);
         // Try to redeem too much collateral
-        vm.expectRevert(abi.encodeWithSelector(DSCEngine.DSCEngine__BreaksHealthFactor.selector, 0));
+        vm.expectRevert(abi.encodeWithSelector(DSCEngine.DSCEngine__BreaksHealthFactor.selector, 200000000000000000)); // 200000000000000000 from forge test error message
         dsce.redeemCollateral(weth, 9 ether); // This would leave insufficient collateral
         vm.stopPrank();
     }

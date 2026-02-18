@@ -324,8 +324,21 @@ contract DSCEngine is ReentrancyGuard {
 
         // $1000 / 100 DSC
         // 1000 * 50 = 50000 / 100 = ((500 * 1e18) / 100) > 1
+
+        // If no DSC has been minted, return maximum health factor (infinite health)
+        if (totalDscMinted == 0) {
+            return type(uint256).max;
+        }
+
         return (collateralAdjustedForThreshold * PRECISION) / totalDscMinted;
     }
+
+    // if (totalDscMinted == 0) {
+    //     uint256 ff = 2e18;
+    //     return ff;
+    // } else {
+    //     return (collateralAdjustedForThreshold * PRECISION) / totalDscMinted;
+    // }
 
     /**
      * @notice This function checks health factor of the user (do they have enough collateral?)
