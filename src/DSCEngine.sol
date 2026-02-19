@@ -67,8 +67,8 @@ contract DSCEngine is ReentrancyGuard {
     /////////////////////
     uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
     uint256 private constant PRECISION = 1e18;
-    uint256 private constant LIUIDATION_THRESHOLD = 50; // 200% overcollateralized (double the DSC)
-    uint256 private constant LIUIDATION_PRECISION = 100;
+    uint256 private constant LIQUIDATION_THRESHOLD = 50; // 200% overcollateralized (double the DSC)
+    uint256 private constant LIQUIDATION_PRECISION = 100;
     uint256 private constant MIN_HEALTH_FACTOR = 1e18;
     uint256 private constant LIQUIDATION_BONUS = 10; // 10% bonus for liquidators
 
@@ -237,7 +237,7 @@ contract DSCEngine is ReentrancyGuard {
         // liquidation bonus = 10%
         // We are giving the liquidator $110 of WETH for 100 DSC covered
         // 0.05 ETH * 0.1 = 0.005 ETH (bonus), Getting 0.055 ETH
-        uint256 bonusCollateral = (tokenAmountFromDebtCovered * LIQUIDATION_BONUS) / LIUIDATION_PRECISION;
+        uint256 bonusCollateral = (tokenAmountFromDebtCovered * LIQUIDATION_BONUS) / LIQUIDATION_PRECISION;
         uint256 totalCollateralToRedeem = tokenAmountFromDebtCovered + bonusCollateral;
         _redeemCollateral(collateral, totalCollateralToRedeem, user, msg.sender);
         _burnDsc(debtToCover, user, msg.sender);
@@ -253,9 +253,9 @@ contract DSCEngine is ReentrancyGuard {
 
     function getHealthFactor() external view {}
 
-    ////////////////////////////////////////
-    // Private & Internal View/Pure Functions  //
-    ////////////////////////////////////////
+    ///////////////////////////////////////////////
+    // Private & Internal View & Pure Functions  //
+    ///////////////////////////////////////////////
 
     /**
      * @dev Low-level internal function, do not call unless the function calling it is
@@ -315,22 +315,8 @@ contract DSCEngine is ReentrancyGuard {
      * @return The health factor of the user.
      */
     function _healthFactor(address user) private view returns (uint256) {
-        // Total DSC minted by the user
-        // Total value of collateral deposited by the user (in USD)
         (uint256 totalDscMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
-        uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIUIDATION_THRESHOLD) / LIUIDATION_PRECISION;
-        // $1000 ETH * 50 = 50,000 / 100 = 500 / 100 > 1
-        // $150 ETH * 50 = 7500 / 100 = 75 / 100 < 1
-
-        // $1000 / 100 DSC
-        // 1000 * 50 = 50000 / 100 = ((500 * 1e18) / 100) > 1
-
-        // If no DSC has been minted, return maximum health factor (infinite health)
-        if (totalDscMinted == 0) {
-            return type(uint256).max;
-        }
-
-        return (collateralAdjustedForThreshold * PRECISION) / totalDscMinted;
+        return _calculateHealthFactor(totalDscMinted, collateralValueInUsd);
     }
 
     function _calculateHealthFactor(uint256 totalDscMinted, uint256 collateralValueInUsd)
@@ -338,18 +324,12 @@ contract DSCEngine is ReentrancyGuard {
         pure
         returns (uint256)
     {
+        // If no DSC has been minted, return maximum health factor (infinite health)
         if (totalDscMinted == 0) return type(uint256).max;
-        uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIUIDATION_THRESHOLD) / LIUIDATION_PRECISION;
-
+        uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
+        // 1000 * 50 = 50000 / 100 = ((500 * 1e18) / 100) > 1
         return (collateralAdjustedForThreshold * PRECISION) / totalDscMinted;
     }
-
-    // if (totalDscMinted == 0) {
-    //     uint256 ff = 2e18;
-    //     return ff;
-    // } else {
-    //     return (collateralAdjustedForThreshold * PRECISION) / totalDscMinted;
-    // }
 
     /**
      * @notice This function checks health factor of the user (do they have enough collateral?)
@@ -363,13 +343,24 @@ contract DSCEngine is ReentrancyGuard {
         }
     }
 
+    function _getUsdValue(address token, uint256 amount) private view returns (uint256) {
+        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
+        (, int256 price,,,) = priceFeed.latestRoundData();
+        // 1 ETH = 1000 USD
+        // The returned value from Chainlink will be 1000 * 1e8
+        // Most USD pairs have 8 decimals, so we will just pretend they all do
+        // We want to have everything in terms of WEI, so we add 10 zeros at the end making 18 zeroes
+        // casting to 'uint256' is safe because price is always positive (int256) and we are only dealing with positive values in this context
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * amount) / PRECISION;
+    }
+
     ///////////////////////////////////////
     // Public & External View Functions  //
     ///////////////////////////////////////
 
     function getTokenAmountFromUsd(address token, uint256 usdAmountInWei) public view returns (uint256) {
-        // To calculate how much of a token you get for a certain USD amount, you can use the price feed to get the current price of the token in USD
-        // and then divide the USD amount by the price of the token to get the amount of tokens you would receive for that USD amount.
+        // Use price feed to get the current price of the token in USD then divide the USD by the price of the token
         // If $2000 / 1 ETH. $1000 DSC = 0.5 ETH
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         (, int256 price,,,) = priceFeed.latestRoundData();
@@ -384,20 +375,13 @@ contract DSCEngine is ReentrancyGuard {
         for (uint256 i = 0; i < s_collateralTokens.length; i++) {
             address token = s_collateralTokens[i];
             uint256 amount = s_collateralDeposited[user][token];
-            totalCollateralValueInUsd += getUsdValue(token, amount);
+            totalCollateralValueInUsd += _getUsdValue(token, amount);
         }
         return totalCollateralValueInUsd;
     }
 
-    function getUsdValue(address token, uint256 amount) public view returns (uint256) {
-        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
-        (, int256 price,,,) = priceFeed.latestRoundData();
-        // The price feed returns the price (for eth and btc) with 8 decimals, so we need to adjust for that when calculating the USD value
-        // We want to return the USD value with 18 decimals, so we need to multiply the price by 1e10 (ADDITIONAL_FEED_PRECISION) to adjust for the 8 decimals, and then multiply by the amount of collateral, and then divide by 1e18 (PRECISION) to adjust for the 18 decimals in the amount of collateral
-
-        // casting to 'uint256' is safe because price is always positive (int256) and we are only dealing with positive values in this context
-        // forge-lint: disable-next-line(unsafe-typecast)
-        return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * amount) / PRECISION;
+    function getUsdValue(address token, uint256 amountInWei) external view returns (uint256) {
+        return _getUsdValue(token, amountInWei);
     }
 
     function getAccountInformation(address user)
@@ -410,6 +394,10 @@ contract DSCEngine is ReentrancyGuard {
 
     function getPrecision() external pure returns (uint256) {
         return PRECISION;
+    }
+
+    function getAdditionalFeedPrecision() external pure returns (uint256) {
+        return ADDITIONAL_FEED_PRECISION;
     }
 
     function calculateHealthFactor(uint256 totalDscMinted, uint256 collateralValueInUsd)
@@ -426,5 +414,33 @@ contract DSCEngine is ReentrancyGuard {
 
     function getLiquidationBonus() external pure returns (uint256) {
         return LIQUIDATION_BONUS;
+    }
+
+    function getLiquidationThreshold() external pure returns (uint256) {
+        return LIQUIDATION_THRESHOLD;
+    }
+
+    function getLiquidationPrecision() external pure returns (uint256) {
+        return LIQUIDATION_PRECISION;
+    }
+
+    function getMinHealthFactor() external pure returns (uint256) {
+        return MIN_HEALTH_FACTOR;
+    }
+
+    function getCollateralTokens() external view returns (address[] memory) {
+        return s_collateralTokens;
+    }
+
+    function getDsc() external view returns (address) {
+        return address(i_dsc);
+    }
+
+    function getCollateralTokenPriceFeed(address token) external view returns (address) {
+        return s_priceFeeds[token];
+    }
+
+    function getCollateralBalanceOfUser(address user, address token) external view returns (uint256) {
+        return s_collateralDeposited[user][token];
     }
 }
