@@ -699,6 +699,11 @@ contract DSCEngineTest is Test {
         assertEq(minHealthFactor, MIN_HEALTH_FACTOR);
     }
 
+    function testGetHealthFactor() public view {
+        uint256 healthFactor = dsce.getHealthFactor(user);
+        assertGe(healthFactor, MIN_HEALTH_FACTOR);
+    }
+
     function testGetLiquidationThreshold() public view {
         uint256 liquidationThreshold = dsce.getLiquidationThreshold();
         assertEq(liquidationThreshold, LIQUIDATION_THRESHOLD);
