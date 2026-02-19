@@ -162,10 +162,13 @@ contract DSCEngine is ReentrancyGuard {
      */
     function redeemCollateralForDsc(address tokenCollateralAddress, uint256 amountCollateral, uint256 amountDscToBurn)
         external
+        moreThanZero(amountCollateral)
+        isAllowedToken(tokenCollateralAddress)
     {
-        burnDsc(amountDscToBurn);
-        redeemCollateral(tokenCollateralAddress, amountCollateral);
-        // redeemCollateral will check the health factor after redeeming collateral, so we don't need to check it here
+        _burnDsc(amountDscToBurn, msg.sender, msg.sender);
+        _redeemCollateral(tokenCollateralAddress, amountCollateral, msg.sender, msg.sender);
+        // redeemCollateral will check the health factor after redeeming collateral, so we don't even need to check it here
+        _revertIfHealthFactorIsBroken(msg.sender);
     }
 
     /**
@@ -177,8 +180,9 @@ contract DSCEngine is ReentrancyGuard {
      * @param amountCollateral The amount of collateral to redeem.
      */
     function redeemCollateral(address tokenCollateralAddress, uint256 amountCollateral)
-        public
+        external
         moreThanZero(amountCollateral)
+        isAllowedToken(tokenCollateralAddress)
         nonReentrant
     {
         _redeemCollateral(tokenCollateralAddress, amountCollateral, msg.sender, msg.sender);
@@ -201,7 +205,12 @@ contract DSCEngine is ReentrancyGuard {
         if (!minted) revert DSCEngine__MintFailed(); // Trying out this one-liner instead of an if statement with a revert in the body, just to see if it works and is more efficient.
     }
 
-    function burnDsc(uint256 amountDscToBurn) public moreThanZero(amountDscToBurn) {
+    /*
+     * @notice careful! You'll burn your DSC here! Make sure you want to do this...
+     * @dev you might want to use this if you're nervous you might get liquidated and want to just burn
+     * your DSC but keep your collateral in.
+     */
+    function burnDsc(uint256 amountDscToBurn) external moreThanZero(amountDscToBurn) {
         _burnDsc(amountDscToBurn, msg.sender, msg.sender);
         _revertIfHealthFactorIsBroken(msg.sender); // I don't think this will ever hit because burning DSC should only increase the health factor
     }
@@ -220,6 +229,7 @@ contract DSCEngine is ReentrancyGuard {
     function liquidate(address collateral, address user, uint256 debtToCover)
         external
         moreThanZero(debtToCover)
+        isAllowedToken(collateral)
         nonReentrant
     {
         // Need to check health factor of the user to make sure they are undercollateralized and can be liquidated
