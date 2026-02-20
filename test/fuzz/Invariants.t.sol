@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {DeployDSC} from "../../script/DeployDSC.s.sol";
 import {DSCEngine} from "../../src/DSCEngine.sol";
@@ -39,6 +39,23 @@ contract Invariants is StdInvariant, Test {
         uint256 wethValue = dsce.getUsdValue(weth, totalWethDeposited);
         uint256 wbtcValue = dsce.getUsdValue(wbtc, totalWbtcDeposited);
 
+        console.log("weth value:", wethValue);
+        console.log("wbtc value:", wbtcValue);
+        console.log("total supply:", totalSupply);
+        console.log("Times mint is called:", handler.timesMintIsCalled());
+
         assertGe(wethValue + wbtcValue, totalSupply);
+    }
+
+    function invariant_gettersShouldNotRevert() public view {
+        dsce.getPrecision();
+        dsce.getAdditionalFeedPrecision();
+        dsce.getLiquidationBonus();
+        dsce.getLiquidationThreshold();
+        dsce.getLiquidationPrecision();
+        dsce.getMinHealthFactor();
+        dsce.getCollateralTokens();
+        dsce.getDsc();
+        dsce.getCollateralTokens();
     }
 }

@@ -29,6 +29,7 @@ import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
+// import {console} from "forge-std/Test.sol";
 
 /**
  * @title DSCEngine
@@ -260,8 +261,6 @@ contract DSCEngine is ReentrancyGuard {
 
         _revertIfHealthFactorIsBroken(msg.sender); // We also want to make sure that the liquidator's health factor is not broken after the liquidation
     }
-
-    function getHealthFactor() external view {}
 
     ///////////////////////////////////////////////
     // Private & Internal View & Pure Functions  //

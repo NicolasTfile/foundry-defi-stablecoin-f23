@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import {DSCEngine} from "../../src/DSCEngine.sol";
 import {DecentralizedStableCoin} from "../../src/DecentralizedStableCoin.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
@@ -14,6 +14,9 @@ contract Handler is Test {
     ERC20Mock weth;
     ERC20Mock wbtc;
 
+    address[] public usersWithCollateralDeposited;
+
+    uint256 public timesMintIsCalled;
     uint256 MAX_DEPOSIT_SIZE = type(uint96).max; // If it is uint256, next deposit (uint256 value + 1) will revert
 
     constructor(DSCEngine _dscEngine, DecentralizedStableCoin _dsc) {
@@ -25,21 +28,32 @@ contract Handler is Test {
         wbtc = ERC20Mock(collateralTokens[1]);
     }
 
-    function mintDsc(uint256 amount) public {
-        (uint256 totalDscMinted, uint256 collateralValueInUsd) = dsce.getAccountInformation(msg.sender);
+    function mintDsc(uint256 amount, uint256 addcressSeed) public {
+        if (usersWithCollateralDeposited.length == 0) {
+            return;
+        }
+        address sender = usersWithCollateralDeposited[addcressSeed % usersWithCollateralDeposited.length];
+        (uint256 totalDscMinted, uint256 collateralValueInUsd) = dsce.getAccountInformation(sender);
+
+        // console.log("Total Dsc Minted:", totalDscMinted);
+        // console.log("Collateral value:", collateralValueInUsd);
 
         int256 maxDscToMint = (int256(collateralValueInUsd / 2) - int256(totalDscMinted));
+        // console.log("Max Dsc:", maxDscToMint);
         if (maxDscToMint < 0) {
             return;
         }
+        // console.log("Amount 1:", amount);
         amount = bound(amount, 0, uint256(maxDscToMint));
+        // console.log("Amount 2:", amount);
         if (amount == 0) {
             return;
         }
 
-        vm.startPrank(msg.sender);
+        vm.startPrank(sender);
         dsce.mintDsc(amount);
         vm.stopPrank();
+        timesMintIsCalled++;
     }
 
     function depositCollateral(uint256 collateralSeed, uint256 amountCollateral) public {
@@ -51,6 +65,7 @@ contract Handler is Test {
         collateral.approve(address(dsce), amountCollateral);
         dsce.depositCollateral(address(collateral), amountCollateral);
         vm.stopPrank();
+        usersWithCollateralDeposited.push(msg.sender);
     }
 
     function redeemCollateral(uint256 collateralSeed, uint256 amountCollateral) public {
@@ -58,6 +73,12 @@ contract Handler is Test {
         uint256 maxCollateraltoRedeem = dsce.getCollateralBalanceOfUser(msg.sender, address(collateral));
         amountCollateral = bound(amountCollateral, 0, maxCollateraltoRedeem);
         if (amountCollateral == 0) {
+            return;
+        }
+
+        (uint256 totalDscMinted,) = dsce.getAccountInformation(msg.sender);
+        uint256 healthFactor = dsce.calculateHealthFactor(totalDscMinted, amountCollateral);
+        if (healthFactor < dsce.getMinHealthFactor()) {
             return;
         }
 
