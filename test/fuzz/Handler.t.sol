@@ -76,7 +76,7 @@ contract Handler is Test {
             return;
         }
 
-        (uint256 totalDscMinted,) = dsce.getAccountInformation(msg.sender); // Fix health factor issues
+        (uint256 totalDscMinted,) = dsce.getAccountInformation(msg.sender); // Fixed health factor issues
         uint256 healthFactor = dsce.calculateHealthFactor(totalDscMinted, amountCollateral);
         if (healthFactor < dsce.getMinHealthFactor()) {
             return;
